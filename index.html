@@ -192,6 +192,7 @@
                 const typeKey = findKey(logData[0], ['Type'], 7);
                 const qtyKey = findKey(logData[0], ['Qty'], 8);
                 const warehouseKey = findKey(logData[0], ['Warehouse'], 12);
+                const itemKey = "_col_15"; // Kolom P (0-indexed P is 15)
                 
                 const uniqueItemsMap = {};
                 const endObj = endDate ? new Date(endDate) : null;
@@ -209,6 +210,7 @@
                         const master = refData[id] || { desc: "SKU Tidak Terdaftar", weight: "0" };
                         uniqueItemsMap[id] = {
                             itemCode: id,
+                            itemName: String(log[itemKey] || '').trim(), // Ambil data dari kolom P
                             desc: master.desc,
                             weight: master.weight,
                             totalIn: 0,
@@ -236,9 +238,12 @@
                     })
                     .filter(item => {
                         const s = searchTerm.toLowerCase();
-                        return item.itemCode.toLowerCase().includes(s) || item.desc.toLowerCase().includes(s);
+                        return (
+                            item.itemCode.toLowerCase().includes(s) || 
+                            item.desc.toLowerCase().includes(s) || 
+                            item.itemName.toLowerCase().includes(s)
+                        );
                     })
-                    // --- SORTING LOGIC: Mengurutkan dari stok (Balance) terbesar ---
                     .sort((a, b) => b.balance - a.balance);
             }, [logData, refData, searchTerm, endDate]);
 
@@ -248,6 +253,7 @@
                     const row = {
                         "No": index + 1,
                         "SKU / Item Code": item.itemCode,
+                        "Item": item.itemName,
                         "Description": item.desc,
                         "Weight": item.weight,
                         "Warehouse": "SIG",
@@ -331,10 +337,10 @@
                     <main className="max-w-[1600px] mx-auto px-6 py-8">
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6 items-end bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                             <div className="md:col-span-8">
-                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block ml-1">Cari SKU / Deskripsi</label>
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block ml-1">Cari SKU / Item / Deskripsi</label>
                                 <div className="relative">
                                     <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icons.Search /></div>
-                                    <input type="text" placeholder="Ketik kode atau nama barang..." className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                                    <input type="text" placeholder="Ketik kode, item, atau nama barang..." className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-medium" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
                             </div>
                             <div className="md:col-span-4">
@@ -350,6 +356,7 @@
                                         <tr className="bg-slate-50/50 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                             <th className="px-6 py-4 text-center w-16 border-r border-slate-100">No</th>
                                             <th className="px-6 py-4 w-40">SKU / Code</th>
+                                            <th className="px-6 py-4 w-40">Item</th>
                                             <th className="px-6 py-4 min-w-[200px]">Description</th>
                                             <th className="px-6 py-4 text-center w-24">Weight</th>
                                             {isAdmin && (
@@ -369,6 +376,9 @@
                                                     <td className="px-6 py-5 text-center text-slate-300 font-bold border-r border-slate-100">{idx + 1}</td>
                                                     <td className="px-6 py-5">
                                                         <span className="font-mono font-black text-indigo-600 text-[11px] bg-indigo-50 px-2 py-1 rounded border border-indigo-100 uppercase tracking-wider">{item.itemCode}</span>
+                                                    </td>
+                                                    <td className="px-6 py-5">
+                                                        <span className="font-bold text-slate-600">{item.itemName || '-'}</span>
                                                     </td>
                                                     <td className="px-6 py-5">
                                                         <span className="font-bold text-slate-700 block truncate max-w-xs xl:max-w-md">{item.desc}</span>
@@ -393,7 +403,7 @@
                                             ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={isAdmin ? 8 : 6} className="px-6 py-20 text-center">
+                                                <td colSpan={isAdmin ? 9 : 7} className="px-6 py-20 text-center">
                                                     {loading ? (
                                                         <div className="flex flex-col items-center gap-3">
                                                             <div className="w-8 h-8 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin"></div>
