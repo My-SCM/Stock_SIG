@@ -192,7 +192,7 @@
                 const typeKey = findKey(logData[0], ['Type'], 7);
                 const qtyKey = findKey(logData[0], ['Qty'], 8);
                 const warehouseKey = findKey(logData[0], ['Warehouse'], 12);
-                const itemKey = "_col_15"; // Kolom P (0-indexed P is 15)
+                const itemKey = "_col_15"; 
                 
                 const uniqueItemsMap = {};
                 const endObj = endDate ? new Date(endDate) : null;
@@ -210,7 +210,7 @@
                         const master = refData[id] || { desc: "SKU Tidak Terdaftar", weight: "0" };
                         uniqueItemsMap[id] = {
                             itemCode: id,
-                            itemName: String(log[itemKey] || '').trim(), // Ambil data dari kolom P
+                            itemName: String(log[itemKey] || '').trim(),
                             desc: master.desc,
                             weight: master.weight,
                             totalIn: 0,
@@ -247,6 +247,17 @@
                     .sort((a, b) => b.balance - a.balance);
             }, [logData, refData, searchTerm, endDate]);
 
+            // Calculate Totals for the Footer
+            const grandTotals = useMemo(() => {
+                return stockSummary.reduce((acc, curr) => {
+                    acc.zak += curr.balance;
+                    acc.ton += curr.tonnage;
+                    acc.in += curr.totalIn;
+                    acc.out += curr.totalOut;
+                    return acc;
+                }, { zak: 0, ton: 0, in: 0, out: 0 });
+            }, [stockSummary]);
+
             const handleExportExcel = () => {
                 if (stockSummary.length === 0) return;
                 const dataForExcel = stockSummary.map((item, index) => {
@@ -266,6 +277,24 @@
                     }
                     return row;
                 });
+                
+                // Add Total row to Excel as well
+                const totalRow = {
+                    "No": "TOTAL",
+                    "SKU / Item Code": "",
+                    "Item": "",
+                    "Description": "",
+                    "Weight": "",
+                    "Warehouse": "",
+                    "On Hand (Zak)": grandTotals.zak,
+                    "On Hand (Ton)": Number(grandTotals.ton.toFixed(2))
+                };
+                if (isAdmin) {
+                    totalRow["Total In (Zak)"] = grandTotals.in;
+                    totalRow["Total Out (Zak)"] = grandTotals.out;
+                }
+                dataForExcel.push(totalRow);
+
                 const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
                 const workbook = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(workbook, worksheet, "SIG_Stock");
@@ -371,36 +400,57 @@
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {!loading && stockSummary.length > 0 ? (
-                                            stockSummary.map((item, idx) => (
-                                                <tr key={item.itemCode} className="hover:bg-slate-50/80 transition-colors group">
-                                                    <td className="px-6 py-5 text-center text-slate-300 font-bold border-r border-slate-100">{idx + 1}</td>
-                                                    <td className="px-6 py-5">
-                                                        <span className="font-mono font-black text-indigo-600 text-[11px] bg-indigo-50 px-2 py-1 rounded border border-indigo-100 uppercase tracking-wider">{item.itemCode}</span>
-                                                    </td>
-                                                    <td className="px-6 py-5">
-                                                        <span className="font-bold text-slate-600">{item.itemName || '-'}</span>
-                                                    </td>
-                                                    <td className="px-6 py-5">
-                                                        <span className="font-bold text-slate-700 block truncate max-w-xs xl:max-w-md">{item.desc}</span>
-                                                    </td>
-                                                    <td className="px-6 py-5 text-center text-slate-400 font-medium">{item.weight}</td>
+                                            <React.Fragment>
+                                                {stockSummary.map((item, idx) => (
+                                                    <tr key={item.itemCode} className="hover:bg-slate-50/80 transition-colors group">
+                                                        <td className="px-6 py-5 text-center text-slate-300 font-bold border-r border-slate-100">{idx + 1}</td>
+                                                        <td className="px-6 py-5">
+                                                            <span className="font-mono font-black text-indigo-600 text-[11px] bg-indigo-50 px-2 py-1 rounded border border-indigo-100 uppercase tracking-wider">{item.itemCode}</span>
+                                                        </td>
+                                                        <td className="px-6 py-5">
+                                                            <span className="font-bold text-slate-600">{item.itemName || '-'}</span>
+                                                        </td>
+                                                        <td className="px-6 py-5">
+                                                            <span className="font-bold text-slate-700 block truncate max-w-xs xl:max-w-md">{item.desc}</span>
+                                                        </td>
+                                                        <td className="px-6 py-5 text-center text-slate-400 font-medium">{item.weight}</td>
+                                                        {isAdmin && (
+                                                            <React.Fragment>
+                                                                <td className="px-6 py-5 text-right bg-emerald-50/5 text-emerald-600 font-bold tabular-nums border-l border-emerald-50/50">{item.totalIn.toLocaleString('id-ID')}</td>
+                                                                <td className="px-6 py-5 text-right bg-rose-50/5 text-rose-600 font-bold tabular-nums">{item.totalOut.toLocaleString('id-ID')}</td>
+                                                            </React.Fragment>
+                                                        )}
+                                                        <td className="px-6 py-5 text-right font-black text-slate-900 tabular-nums bg-slate-50/30">
+                                                            {item.balance.toLocaleString('id-ID')}
+                                                        </td>
+                                                        <td className="px-6 py-5 text-right bg-indigo-50/10">
+                                                            <div className="flex items-center justify-end gap-1.5 text-indigo-700 font-black tabular-nums text-sm">
+                                                                <Icons.Scale className="opacity-30" />
+                                                                {item.tonnage.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {/* GRAND TOTAL ROW */}
+                                                <tr className="bg-slate-900 text-white font-black">
+                                                    <td colSpan={5} className="px-6 py-6 text-right uppercase tracking-widest text-[11px]">Grand Total SIG Inventory</td>
                                                     {isAdmin && (
                                                         <React.Fragment>
-                                                            <td className="px-6 py-5 text-right bg-emerald-50/5 text-emerald-600 font-bold tabular-nums border-l border-emerald-50/50">{item.totalIn.toLocaleString('id-ID')}</td>
-                                                            <td className="px-6 py-5 text-right bg-rose-50/5 text-rose-600 font-bold tabular-nums">{item.totalOut.toLocaleString('id-ID')}</td>
+                                                            <td className="px-6 py-6 text-right tabular-nums text-emerald-400 border-l border-white/10">{grandTotals.in.toLocaleString('id-ID')}</td>
+                                                            <td className="px-6 py-6 text-right tabular-nums text-rose-400">{grandTotals.out.toLocaleString('id-ID')}</td>
                                                         </React.Fragment>
                                                     )}
-                                                    <td className="px-6 py-5 text-right font-black text-slate-900 tabular-nums bg-slate-50/30">
-                                                        {item.balance.toLocaleString('id-ID')}
+                                                    <td className="px-6 py-6 text-right tabular-nums bg-slate-800">
+                                                        {grandTotals.zak.toLocaleString('id-ID')}
                                                     </td>
-                                                    <td className="px-6 py-5 text-right bg-indigo-50/10">
-                                                        <div className="flex items-center justify-end gap-1.5 text-indigo-700 font-black tabular-nums text-sm">
-                                                            <Icons.Scale className="opacity-30" />
-                                                            {item.tonnage.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    <td className="px-6 py-6 text-right bg-indigo-900/50">
+                                                        <div className="flex items-center justify-end gap-1.5 tabular-nums text-indigo-100">
+                                                            <Icons.Scale className="opacity-50" />
+                                                            {grandTotals.ton.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            ))
+                                            </React.Fragment>
                                         ) : (
                                             <tr>
                                                 <td colSpan={isAdmin ? 9 : 7} className="px-6 py-20 text-center">
